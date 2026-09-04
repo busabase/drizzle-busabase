@@ -1,0 +1,12 @@
+{
+  // See the note in drizzle-busabase's copy: handing the declaration generator
+  // the package tsconfig makes it compile busabase-sdk's SOURCES and emit a
+  // .d.ts beside each one, overwriting hand-written declarations elsewhere in
+  // the repo. Point it at the SDK's built declaration instead.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": { "busabase-sdk": ["../../apps/busabase-sdk/dist/index.d.ts"] }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

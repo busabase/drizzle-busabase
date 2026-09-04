@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2023"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "busabase-orm-core": [
+        "./busabase-orm-core/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "drizzle-busabase/src/**/*.ts",
+    "busabase-orm-core/src/**/*.ts"
+  ],
+  "exclude": [
+    "**/*.test.ts"
+  ]
+}

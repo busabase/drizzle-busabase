@@ -1,0 +1,59 @@
+{
+  "name": "drizzle-busabase",
+  "version": "0.1.0",
+  "description": "Drizzle ORM driver for Busabase — query a Busabase Base with drizzle's typed query builder, translated to busabase-sdk REST calls.",
+  "license": "MIT",
+  "homepage": "https://github.com/busabase/drizzle-busabase",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/busabase/drizzle-busabase.git"
+  },
+  "bugs": "https://github.com/busabase/drizzle-busabase/issues",
+  "type": "module",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsdown",
+    "prepack": "pnpm run build",
+    "prepublishOnly": "pnpm run typecheck && pnpm run lint:err && pnpm run build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**/*.ts' --coverage.exclude='src/**/*.test.ts'",
+    "lint": "biome format . --write && biome check .",
+    "lint:err": "biome format . --write && biome check . --write --diagnostic-level=error"
+  },
+  "dependencies": {
+    "busabase-sdk": "^0.40.1"
+  },
+  "peerDependencies": {
+    "drizzle-orm": ">=0.44 <1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "busabase-orm-core": "workspace:*",
+    "drizzle-orm": "^0.45.1",
+    "tsdown": "^0.22.14",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "author": "Busabase <support@busabase.com>"
+}
