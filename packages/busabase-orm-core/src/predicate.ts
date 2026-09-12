@@ -45,8 +45,8 @@ export type RecordPayload = Record<string, unknown>;
  * the stored value in its typed column, so the answer is authoritative.
  *
  * Only a *candidate* at this stage: whether the field actually has such a
- * column (number/date) is known to the Base, not to this module, so the caller
- * confirms it before sending.
+ * column, and whether this operator is exact on it, is known to the Base rather
+ * than to this module, so the caller confirms it before sending.
  */
 export interface ValueCandidate {
   fieldSlug: string;
@@ -54,22 +54,86 @@ export interface ValueCandidate {
   value: unknown;
 }
 
+/**
+ * The exact half of a where clause, as a BOOLEAN TREE rather than a list.
+ *
+ * It was a flat list while the server only ANDed value filters, which made an
+ * OR unpushable by construction — `WHERE a OR b` had to drag the whole Base
+ * across the wire and decide locally. `valueFilters` now takes a CNF, so the
+ * shape has to survive down to the point where it can be converted.
+ *
+ * `opaque` is a condition with no exact form at all (a LIKE, an IS NULL). It is
+ * a node rather than an omission on purpose: inside an AND, an unpushable
+ * conjunct may simply be dropped, because AND-ing fewer conditions can only
+ * WIDEN the row set and the local predicate still narrows it. Inside an OR it
+ * may NOT — dropping one branch of a disjunction narrows the result, and rows
+ * the caller asked for would silently go missing. Keeping the hole in the tree
+ * is what lets the pruner tell those two cases apart.
+ */
+export type ValueNode =
+  | ({ kind: "leaf" } & ValueCandidate)
+  | { kind: "and"; nodes: ValueNode[] }
+  | { kind: "or"; nodes: ValueNode[] }
+  | { kind: "opaque" };
+
 export interface CompiledWhere {
   /** Superset hint for the server. Never sufficient on its own. */
   pushdown: BusabaseFilter[];
-  /** Exact comparisons, pending the caller's field-type check. */
-  valueCandidates: ValueCandidate[];
+  /** Exact comparisons as a boolean tree, pending the caller's field checks. */
+  valueTree: ValueNode;
   /**
-   * True when `valueCandidates` alone fully decide this where clause — i.e. it
-   * is a pure AND of comparisons, with no operator that has to be evaluated
-   * locally. That is the condition under which the caller may skip the local
-   * predicate and push `limit` down, so it is deliberately conservative: an OR,
-   * a NOT, a LIKE or an IS NULL anywhere makes it false.
+   * True when `valueTree` alone fully decides this where clause — i.e. it holds
+   * no `opaque`. That is a NECESSARY condition for skipping the local predicate
+   * and pushing `limit` down, not a sufficient one: the caller must also
+   * confirm every leaf is actually sendable against the Base's field types.
    */
   fullyExact: boolean;
   /** Exact predicate. This is what decides membership in the result. */
   predicate: (payload: RecordPayload) => boolean;
 }
+
+/** Whether a tree can be sent whole — i.e. it holds no unexpressible condition. */
+export const treeIsExact = (node: ValueNode): boolean => {
+  if (node.kind === "opaque") return false;
+  if (node.kind === "leaf") return true;
+  return node.nodes.every(treeIsExact);
+};
+
+/** Every comparison operator's exact negation. This is what makes NOT pushable. */
+const NEGATED_OPERATOR: Record<ValueCandidate["operator"], ValueCandidate["operator"]> = {
+  eq: "ne",
+  ne: "eq",
+  gt: "lte",
+  gte: "lt",
+  lt: "gte",
+  lte: "gt",
+};
+
+/**
+ * Pushes a NOT down to the leaves, by De Morgan plus operator negation.
+ *
+ * This is what lets a negated clause be evaluated server-side at all, and it is
+ * also what keeps the server's evaluation sound. The wire format has no NOT, so
+ * a leaf that finds no row for a field is FALSE — SQL's UNKNOWN collapsed to
+ * false. For an AND/OR tree with no NOT that collapse is harmless, because
+ * "Kleene says TRUE" and "UNKNOWN-as-FALSE says TRUE" agree on monotone
+ * formulas (OR is `some operand true`, AND is `all operands true`, under both
+ * readings). Leaving a NOT above the leaves would break that agreement; pushing
+ * it into them restores monotonicity, and the operator swap is exact:
+ * `NOT (x > 5)` and `x <= 5` both reject a record with no `x`, one because
+ * Kleene's NOT of UNKNOWN is UNKNOWN, the other because the EXISTS finds
+ * nothing.
+ */
+const negateTree = (node: ValueNode): ValueNode => {
+  if (node.kind === "opaque") return node;
+  if (node.kind === "leaf") {
+    return { ...node, operator: NEGATED_OPERATOR[node.operator] };
+  }
+  return {
+    kind: node.kind === "and" ? "or" : "and",
+    nodes: node.nodes.map(negateTree),
+  };
+};
 
 export class UnsupportedWhereError extends Error {
   constructor(detail: string) {
@@ -209,10 +273,8 @@ export interface PredicateNode {
   evaluate: (payload: RecordPayload) => Tri;
   /** View filters: a superset hint that may only ever shrink the candidate set. */
   pushdown: BusabaseFilter[];
-  /** Exact comparisons, pending the caller's field-type check. */
-  valueCandidates: ValueCandidate[];
-  /** Whether `valueCandidates` alone decide this node. */
-  fullyExact: boolean;
+  /** Exact comparisons as a boolean tree, pending the caller's field checks. */
+  valueTree: ValueNode;
 }
 
 const node = (
@@ -221,11 +283,15 @@ const node = (
 ): PredicateNode => ({
   evaluate,
   pushdown: parts.pushdown ?? [],
-  valueCandidates: parts.valueCandidates ?? [],
-  fullyExact: parts.fullyExact ?? false,
+  // An unset tree means "this node says nothing the server can use". `and` with
+  // no children is the identity for AND — true — which is what an absent
+  // constraint means, and it prunes away cleanly.
+  valueTree: parts.valueTree ?? { kind: "opaque" },
 });
 
-export const alwaysTrue: PredicateNode = node(() => true, { fullyExact: true });
+export const alwaysTrue: PredicateNode = node(() => true, {
+  valueTree: { kind: "and", nodes: [] },
+});
 
 /**
  * `field <op> value`. Every one of these maps onto an exact value filter, so
@@ -238,7 +304,6 @@ export const comparison = (
   value: unknown,
 ): PredicateNode => {
   const read = (payload: RecordPayload) => payload[fieldSlug];
-  const candidates = [{ fieldSlug, operator, value }];
   const evaluate: PredicateNode["evaluate"] =
     operator === "eq"
       ? (payload) => equals(read(payload), value)
@@ -259,8 +324,47 @@ export const comparison = (
     operator === "eq"
       ? (booleanPushdown(fieldSlug, value) ?? [{ fieldSlug, operator: "equals" as const, value }])
       : [];
-  return node(evaluate, { pushdown, valueCandidates: candidates, fullyExact: true });
+  return node(evaluate, {
+    pushdown,
+    valueTree: { kind: "leaf", fieldSlug, operator, value },
+  });
 };
+
+/**
+ * `field <op> otherField`. Both sides are read off the same record, so this is
+ * decided locally and never sent: `valueFilters` compare a stored value against
+ * a LITERAL, and there is no wire form for "this column against that one".
+ *
+ * It is still worth supporting rather than refusing. The condition is ordinary
+ * SQL (`WHERE start_date <= end_date`), it is perfectly answerable from the
+ * record payload the driver already has, and refusing it would push the user
+ * into fetching everything and filtering in application code — the same scan,
+ * minus the three-valued semantics and the scan budget.
+ *
+ * Missing values keep SQL's meaning: if either side is absent the comparison is
+ * UNKNOWN, not false, which is what `compare` already returns for a nullish
+ * operand.
+ */
+export const columnComparison = (
+  leftSlug: string,
+  operator: ComparisonOperator,
+  rightSlug: string,
+): PredicateNode =>
+  node((payload) => {
+    const left = payload[leftSlug];
+    const right = payload[rightSlug];
+    if (operator === "eq") return equals(left, right);
+    if (operator === "ne") return triNot(equals(left, right));
+    const accept =
+      operator === "gt"
+        ? (result: number) => result > 0
+        : operator === "gte"
+          ? (result: number) => result >= 0
+          : operator === "lt"
+            ? (result: number) => result < 0
+            : (result: number) => result <= 0;
+    return order(left, right, accept);
+  });
 
 /** SQL `LIKE` / `ILIKE`. No exact form — Busabase compares whole values. */
 export const matchesPattern = (
@@ -297,10 +401,17 @@ export const isNotEmpty = (fieldSlug: string): PredicateNode =>
 
 /** `IN` / `NOT IN`. */
 export const oneOf = (fieldSlug: string, values: unknown[], negated: boolean): PredicateNode => {
-  // A single-element IN is just equality, and equality is exactly pushable.
-  // A longer list is not: the server ANDs value filters, and `x = 1 AND x = 2`
-  // matches nothing.
-  const single = !negated && values.length === 1;
+  // `IN` is an OR of equalities and `NOT IN` an AND of inequalities, which is
+  // now expressible: the server takes a CNF. Previously only a single-element
+  // IN could be pushed, because value filters were ANDed and `x = 1 AND x = 2`
+  // matches nothing — so the common `inArray(t.status, [...])` fell back to
+  // scanning the whole Base.
+  const leaves: ValueNode[] = values.map((value) => ({
+    kind: "leaf",
+    fieldSlug,
+    operator: negated ? ("ne" as const) : ("eq" as const),
+    value,
+  }));
   return node(
     (payload) => {
       const actual = payload[fieldSlug];
@@ -309,9 +420,13 @@ export const oneOf = (fieldSlug: string, values: unknown[], negated: boolean): P
       return negated ? triNot(matches) : matches;
     },
     {
-      pushdown: single ? [{ fieldSlug, operator: "equals", value: values[0] }] : [],
-      valueCandidates: single ? [{ fieldSlug, operator: "eq", value: values[0] }] : [],
-      fullyExact: single,
+      // An empty `IN ()` is false, not true — `or` of nothing. `NOT IN ()` is
+      // true, which is `and` of nothing. Both fall out of the tree shape.
+      pushdown:
+        !negated && values.length === 1
+          ? [{ fieldSlug, operator: "equals", value: values[0] }]
+          : [],
+      valueTree: { kind: negated ? "and" : "or", nodes: leaves },
     },
   );
 };
@@ -327,11 +442,13 @@ export const inRange = (fieldSlug: string, lower: unknown, upper: unknown): Pred
       return low >= 0 && high <= 0;
     },
     {
-      valueCandidates: [
-        { fieldSlug, operator: "gte", value: lower },
-        { fieldSlug, operator: "lte", value: upper },
-      ],
-      fullyExact: true,
+      valueTree: {
+        kind: "and",
+        nodes: [
+          { kind: "leaf", fieldSlug, operator: "gte", value: lower },
+          { kind: "leaf", fieldSlug, operator: "lte", value: upper },
+        ],
+      },
     },
   );
 
@@ -342,31 +459,39 @@ export const inRange = (fieldSlug: string, lower: unknown, upper: unknown): Pred
 export const all = (nodes: PredicateNode[]): PredicateNode =>
   node((payload) => triAnd(nodes.map((entry) => entry.evaluate(payload))), {
     pushdown: nodes.flatMap((entry) => entry.pushdown),
-    valueCandidates: nodes.flatMap((entry) => entry.valueCandidates),
-    fullyExact: nodes.every((entry) => entry.fullyExact),
+    valueTree: { kind: "and", nodes: nodes.map((entry) => entry.valueTree) },
   });
 
 /**
- * OR. Nothing may be pushed: a single branch's filter would exclude rows the
- * other branch matches, and the server ANDs value filters for the same reason.
+ * OR.
+ *
+ * The VIEW filters still cannot be pushed — Busabase ANDs them, so one branch's
+ * filter would exclude rows the other branch matches. The exact tree can be,
+ * now that `valueFilters` accepts a disjunction; whether it survives depends on
+ * every branch being expressible, which the pruner decides.
  */
 export const any = (nodes: PredicateNode[]): PredicateNode =>
-  node((payload) => triOr(nodes.map((entry) => entry.evaluate(payload))));
+  node((payload) => triOr(nodes.map((entry) => entry.evaluate(payload))), {
+    valueTree: { kind: "or", nodes: nodes.map((entry) => entry.valueTree) },
+  });
 
 /**
- * NOT. Also unpushable — and note this is not the same as `ne`, because
- * NOT UNKNOWN is UNKNOWN rather than true.
+ * NOT. Pushable, by rewriting rather than by asking the server for a NOT — see
+ * `negateTree`. Note the local evaluation is still Kleene's `NOT`, where NOT of
+ * UNKNOWN is UNKNOWN rather than true; the rewrite is exact against that.
  */
 export const negate = (inner: PredicateNode): PredicateNode =>
-  node((payload) => triNot(inner.evaluate(payload)));
+  node((payload) => triNot(inner.evaluate(payload)), {
+    valueTree: negateTree(inner.valueTree),
+  });
 
 /** Seals a node into the result the executor consumes. */
 export const finalize = (root: PredicateNode | undefined): CompiledWhere => {
   const resolved = root ?? alwaysTrue;
   return {
     pushdown: resolved.pushdown,
-    valueCandidates: resolved.valueCandidates,
-    fullyExact: resolved.fullyExact,
+    valueTree: resolved.valueTree,
+    fullyExact: treeIsExact(resolved.valueTree),
     // UNKNOWN does not satisfy a WHERE clause, same as Postgres.
     predicate: (payload) => resolved.evaluate(payload) === true,
   };

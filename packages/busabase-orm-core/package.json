@@ -1,6 +1,6 @@
 {
   "name": "busabase-orm-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared Busabase query engine for ORM drivers — Base resolution, SQL value semantics, push-down decisions and paging. NOT published to npm: it is bundled into drizzle-busabase and kysely-busabase at build time, so neither has a workspace dependency to install.",
   "license": "MIT",
   "homepage": "https://github.com/busabase/drizzle-busabase",
@@ -36,7 +36,7 @@
     "lint:err": "biome format . --write && biome check . --write --diagnostic-level=error"
   },
   "dependencies": {
-    "busabase-sdk": "^0.40.1"
+    "busabase-sdk": "^0.60.0"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",
@@ -47,5 +47,8 @@
   "engines": {
     "node": ">=20"
   },
-  "author": "Busabase <support@busabase.com>"
+  "author": {
+    "name": "Busabase",
+    "email": "support@busabase.com"
+  }
 }

@@ -25,6 +25,8 @@ import { compileWhere } from "./where";
 const people = pgTable("people", {
   name: text("name"),
   age: integer("age"),
+  // A second numeric column, so a column-to-column comparison has two sides.
+  score: integer("score"),
   active: boolean("active"),
 });
 
@@ -217,77 +219,144 @@ describe("unsupported expressions are rejected, never ignored", () => {
     expect(() => compile(sql`lower(${people.name}) = 'x'`)).toThrow(UnsupportedWhereError);
   });
 
-  it("rejects a column-to-column comparison", () => {
-    expect(() => compile(eq(people.name, people.age))).toThrow(UnsupportedWhereError);
-  });
-
   it("names the offending condition in the message", () => {
     expect(() => compile(sql`lower(${people.name}) = 'x'`)).toThrow(/not translatable/);
   });
 });
 
-describe("value candidates — the exact half", () => {
+describe("column-to-column comparisons", () => {
+  // Previously refused. It is ordinary SQL, it is answerable from the record
+  // payload the driver already holds, and refusing it only pushed the user into
+  // fetching everything and filtering by hand — the same scan without the
+  // three-valued semantics or the scan budget.
+  it("compares two columns of the same record", () => {
+    const compiled = compile(gt(people.age, people.score));
+    expect(compiled.predicate({ age: 30, score: 10 })).toBe(true);
+    expect(compiled.predicate({ age: 10, score: 30 })).toBe(false);
+  });
+
+  it("keeps SQL's UNKNOWN when either side is missing", () => {
+    const compiled = compile(gt(people.age, people.score));
+    expect(compiled.predicate({ age: 30 })).toBe(false);
+    expect(compiled.predicate({ score: 30 })).toBe(false);
+    expect(compiled.predicate({})).toBe(false);
+  });
+
+  it("handles equality and inequality between columns", () => {
+    expect(compile(eq(people.age, people.score)).predicate({ age: 5, score: 5 })).toBe(true);
+    expect(compile(ne(people.age, people.score)).predicate({ age: 5, score: 6 })).toBe(true);
+  });
+
+  it("stays out of the exact half — there is no wire form for it", () => {
+    expect(compile(gt(people.age, people.score)).fullyExact).toBe(false);
+  });
+});
+
+describe("value tree — the exact half", () => {
   // `valueFilters` on the server compares stored values in their typed column,
   // so a comparison that maps onto one needs no local narrowing at all. That is
   // what `fullyExact` reports, and it is what lets the caller push `limit` down.
-  it("maps every ordering comparison onto a candidate", () => {
-    expect(compile(gt(people.age, 18)).valueCandidates).toEqual([
-      { fieldSlug: "age", operator: "gt", value: 18 },
-    ]);
-    expect(compile(lte(people.age, 18)).valueCandidates).toEqual([
-      { fieldSlug: "age", operator: "lte", value: 18 },
-    ]);
-    expect(compile(ne(people.name, "kelly")).valueCandidates).toEqual([
-      { fieldSlug: "name", operator: "ne", value: "kelly" },
-    ]);
-    expect(compile(eq(people.age, 30)).valueCandidates).toEqual([
-      { fieldSlug: "age", operator: "eq", value: 30 },
-    ]);
+  const leaf = (fieldSlug: string, operator: string, value: unknown) => ({
+    kind: "leaf",
+    fieldSlug,
+    operator,
+    value,
+  });
+
+  it("maps every ordering comparison onto a leaf", () => {
+    expect(compile(gt(people.age, 18)).valueTree).toEqual(leaf("age", "gt", 18));
+    expect(compile(lte(people.age, 18)).valueTree).toEqual(leaf("age", "lte", 18));
+    expect(compile(ne(people.name, "kelly")).valueTree).toEqual(leaf("name", "ne", "kelly"));
+    expect(compile(eq(people.age, 30)).valueTree).toEqual(leaf("age", "eq", 30));
   });
 
   it("splits between into the gte/lte pair the server ANDs back together", () => {
-    expect(compile(between(people.age, 18, 65)).valueCandidates).toEqual([
-      { fieldSlug: "age", operator: "gte", value: 18 },
-      { fieldSlug: "age", operator: "lte", value: 65 },
-    ]);
+    expect(compile(between(people.age, 18, 65)).valueTree).toEqual({
+      kind: "and",
+      nodes: [leaf("age", "gte", 18), leaf("age", "lte", 65)],
+    });
     expect(compile(between(people.age, 18, 65)).fullyExact).toBe(true);
   });
 
   it("collects an AND of comparisons and stays exact", () => {
     const compiled = compile(and(gt(people.age, 18), lt(people.age, 65)));
-    expect(compiled.valueCandidates).toEqual([
-      { fieldSlug: "age", operator: "gt", value: 18 },
-      { fieldSlug: "age", operator: "lt", value: 65 },
-    ]);
+    expect(compiled.valueTree).toEqual({
+      kind: "and",
+      nodes: [leaf("age", "gt", 18), leaf("age", "lt", 65)],
+    });
     expect(compiled.fullyExact).toBe(true);
   });
 
-  it("treats a single-element IN as equality, but not a longer list", () => {
-    expect(compile(inArray(people.name, ["kelly"])).valueCandidates).toEqual([
-      { fieldSlug: "name", operator: "eq", value: "kelly" },
-    ]);
-    // The server ANDs value filters, and `x = a AND x = b` matches nothing.
-    expect(compile(inArray(people.name, ["kelly", "sam"])).valueCandidates).toEqual([]);
-    expect(compile(inArray(people.name, ["kelly", "sam"])).fullyExact).toBe(false);
+  // The four cases below used to be inexact and are now not. That is the point
+  // of the CNF work rather than a relaxed assertion: each one previously forced
+  // the driver to page an entire Base and decide locally.
+  it("turns any-length IN into an OR of equalities", () => {
+    // A one-element list stays an `or` of one here rather than collapsing to a
+    // bare leaf: the tree mirrors the source clause, and flattening a
+    // single-child group is the wire compiler's job, not the builder's.
+    expect(compile(inArray(people.name, ["kelly"])).valueTree).toEqual({
+      kind: "or",
+      nodes: [leaf("name", "eq", "kelly")],
+    });
+    expect(compile(inArray(people.name, ["kelly", "sam"])).valueTree).toEqual({
+      kind: "or",
+      nodes: [leaf("name", "eq", "kelly"), leaf("name", "eq", "sam")],
+    });
+    expect(compile(inArray(people.name, ["kelly", "sam"])).fullyExact).toBe(true);
+  });
+
+  it("turns NOT IN into an AND of inequalities", () => {
+    expect(compile(notInArray(people.name, ["kelly", "sam"])).valueTree).toEqual({
+      kind: "and",
+      nodes: [leaf("name", "ne", "kelly"), leaf("name", "ne", "sam")],
+    });
+  });
+
+  it("keeps an OR exact, as a disjunction", () => {
+    const compiled = compile(or(gt(people.age, 18), lt(people.age, 5)));
+    expect(compiled.fullyExact).toBe(true);
+    expect(compiled.valueTree).toEqual({
+      kind: "or",
+      nodes: [leaf("age", "gt", 18), leaf("age", "lt", 5)],
+    });
+  });
+
+  it("rewrites NOT into its leaves instead of asking the server for one", () => {
+    expect(compile(not(gt(people.age, 18))).valueTree).toEqual(leaf("age", "lte", 18));
+    expect(compile(not(gt(people.age, 18))).fullyExact).toBe(true);
   });
 
   it.each([
-    ["or", or(gt(people.age, 18), gt(people.age, 65))],
-    ["not", not(gt(people.age, 18))],
     ["like", like(people.name, "kel%")],
     ["isNull", isNull(people.name)],
     ["isNotNull", isNotNull(people.name)],
-    ["notInArray", notInArray(people.name, ["kelly"])],
   ])("is not fully exact with %s anywhere", (_label, where) => {
     expect(compile(where).fullyExact).toBe(false);
   });
 
+  it("cannot rescue a NOT over an unexpressible condition", () => {
+    expect(compile(not(like(people.name, "kel%"))).fullyExact).toBe(false);
+  });
+
   it("loses exactness when one branch of an AND is inexact", () => {
     // The whole point: one condition the server cannot decide makes its answer
-    // a superset again, and a superset cannot carry a limit.
+    // a superset again, and a superset cannot carry a limit. The expressible
+    // half stays in the tree, because dropping a CONJUNCT only widens.
     const compiled = compile(and(gt(people.age, 18), like(people.name, "kel%")));
     expect(compiled.fullyExact).toBe(false);
-    expect(compiled.valueCandidates).toEqual([{ fieldSlug: "age", operator: "gt", value: 18 }]);
+    expect(compiled.valueTree).toEqual({
+      kind: "and",
+      nodes: [leaf("age", "gt", 18), { kind: "opaque" }],
+    });
+  });
+
+  it("keeps the hole visible when one branch of an OR is inexact", () => {
+    // Not symmetric with the AND above, and that asymmetry is load-bearing:
+    // dropping a DISJUNCT would lose rows rather than gain them.
+    expect(compile(or(gt(people.age, 18), like(people.name, "kel%"))).valueTree).toEqual({
+      kind: "or",
+      nodes: [leaf("age", "gt", 18), { kind: "opaque" }],
+    });
   });
 
   it("is trivially exact with no where clause", () => {

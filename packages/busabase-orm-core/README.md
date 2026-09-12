@@ -37,9 +37,15 @@ const { base, rows } = await executeSelect(
 `finalize()` returns three things that must stay in step:
 
 - `pushdown` — view filters for the server. A **hint**: it may only ever *shrink* the candidate set.
-- `valueCandidates` — exact comparisons, pending the caller's field-type check.
+- `valueTree` — the exact comparisons as a boolean tree, pending the caller's field-type check.
 - `predicate` — the local, authoritative decision.
 
 **Whatever the server returns for `pushdown` must still contain every row `predicate` accepts.** If that breaks, every driver silently loses rows — so it is tested directly in `predicate.test.ts`, not left to the driver suites.
 
-`fullyExact` reports whether `valueCandidates` alone decide the clause. It is deliberately conservative: an `or`, a `not`, a `like` or an `is null` anywhere makes it false. Only when it holds — *and* every candidate landed on a field with a real value column — may a driver skip the local predicate and push `limit` down.
+`fullyExact` reports whether `valueTree` alone decides the clause — that is, whether it holds no `opaque` node. An `or` or a `not` does **not** make it false: the wire format is a CNF whose entries may carry an `any` group, and `compileValueFilters` distributes into it, so the whole boolean structure survives. What makes it false is a condition with no exact form at all — a `like`, an `is null`, a comparison against another column.
+
+`fullyExact` is necessary but not sufficient. The caller must also confirm every leaf is sendable against the Base's actual field types; only then may a driver skip the local predicate and push `limit` down.
+
+Negation never reaches the wire. Every operator has an exact negation, so `not` is pushed to the leaves with De Morgan at compile time. That keeps evaluation **monotone**, which is what makes the missing-value semantics sound: a leaf matching no row is false, and for an AND/OR tree with no NOT that agrees with SQL's three-valued answer.
+
+Distribution into CNF is **budgeted** rather than unbounded. `records.list` is a GET, so the compiled filters have to fit in a URL — past the budget the tree is pruned instead, asymmetrically: inside an AND an unpushable conjunct may be dropped (that widens, and the local predicate re-narrows), inside an OR it may not (that would narrow, and rows would vanish).

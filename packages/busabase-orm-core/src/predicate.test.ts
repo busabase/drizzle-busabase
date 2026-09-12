@@ -4,6 +4,7 @@ import {
   alwaysTrue,
   any,
   type BusabaseFilter,
+  columnComparison,
   comparison,
   finalize,
   inRange,
@@ -84,38 +85,165 @@ describe("three-valued logic", () => {
   });
 });
 
+describe("columnComparison", () => {
+  const decide = (node: ReturnType<typeof columnComparison>, payload: Record<string, unknown>) =>
+    finalize(node).predicate(payload);
+
+  it.each([
+    ["gt", { a: 5, b: 3 }, true],
+    ["gt", { a: 3, b: 5 }, false],
+    ["gte", { a: 5, b: 5 }, true],
+    ["lt", { a: 3, b: 5 }, true],
+    ["lte", { a: 5, b: 5 }, true],
+    ["eq", { a: 5, b: 5 }, true],
+    ["ne", { a: 5, b: 6 }, true],
+  ] as const)("%s", (operator, payload, expected) => {
+    expect(decide(columnComparison("a", operator, "b"), payload)).toBe(expected);
+  });
+
+  it.each(["eq", "ne", "gt", "gte", "lt", "lte"] as const)(
+    "%s is UNKNOWN when either side is missing, not false-by-coercion",
+    (operator) => {
+      // `undefined > 1` is `false` in JS and UNKNOWN in SQL. Both readings keep
+      // the row out of a WHERE, but only one of them keeps `NOT` honest — which
+      // is why this goes through the same `compare`/`equals` as a literal.
+      expect(decide(columnComparison("a", operator, "b"), { a: 5 })).toBe(false);
+      expect(decide(columnComparison("a", operator, "b"), { b: 5 })).toBe(false);
+      expect(decide(columnComparison("a", operator, "b"), {})).toBe(false);
+    },
+  );
+
+  it("compares text columns as text", () => {
+    expect(decide(columnComparison("a", "eq", "b"), { a: "x", b: "x" })).toBe(true);
+    expect(decide(columnComparison("a", "lt", "b"), { a: "a", b: "b" })).toBe(true);
+  });
+
+  it("is never sent to the server — there is no wire form for it", () => {
+    expect(finalize(columnComparison("a", "gt", "b")).fullyExact).toBe(false);
+    expect(finalize(columnComparison("a", "gt", "b")).pushdown).toEqual([]);
+  });
+});
+
 describe("exactness", () => {
-  it("marks every comparison exact and carries its candidate", () => {
+  it("marks a comparison exact and carries it as a leaf", () => {
     const compiled = finalize(comparison("age", "gt", 18));
-    expect(compiled.valueCandidates).toEqual([{ fieldSlug: "age", operator: "gt", value: 18 }]);
+    expect(compiled.valueTree).toEqual({
+      kind: "leaf",
+      fieldSlug: "age",
+      operator: "gt",
+      value: 18,
+    });
     expect(compiled.fullyExact).toBe(true);
   });
 
   it("splits between into the gte/lte pair the server ANDs back", () => {
-    expect(finalize(inRange("age", 18, 65)).valueCandidates).toEqual([
-      { fieldSlug: "age", operator: "gte", value: 18 },
-      { fieldSlug: "age", operator: "lte", value: 65 },
-    ]);
+    expect(finalize(inRange("age", 18, 65)).valueTree).toEqual({
+      kind: "and",
+      nodes: [
+        { kind: "leaf", fieldSlug: "age", operator: "gte", value: 18 },
+        { kind: "leaf", fieldSlug: "age", operator: "lte", value: 65 },
+      ],
+    });
+  });
+
+  // These three used to be inexact, and the change is the point of the CNF
+  // work rather than a loosened assertion: an OR is now a disjunction the
+  // server evaluates, a NOT is rewritten into its leaves, and a multi-element
+  // IN is the OR it always was. Each previously forced a full-Base scan.
+  it("keeps an OR exact, as a disjunction", () => {
+    const compiled = finalize(any([comparison("age", "gt", 18), comparison("age", "lt", 5)]));
+    expect(compiled.fullyExact).toBe(true);
+    expect(compiled.valueTree).toEqual({
+      kind: "or",
+      nodes: [
+        { kind: "leaf", fieldSlug: "age", operator: "gt", value: 18 },
+        { kind: "leaf", fieldSlug: "age", operator: "lt", value: 5 },
+      ],
+    });
+  });
+
+  it("rewrites a NOT into its leaves rather than asking the server for one", () => {
+    const compiled = finalize(negate(comparison("age", "gt", 18)));
+    expect(compiled.fullyExact).toBe(true);
+    expect(compiled.valueTree).toEqual({
+      kind: "leaf",
+      fieldSlug: "age",
+      operator: "lte",
+      value: 18,
+    });
+  });
+
+  it("applies De Morgan through a NOT over an AND", () => {
+    expect(
+      finalize(negate(all([comparison("age", "gt", 18), comparison("age", "lt", 65)]))).valueTree,
+    ).toEqual({
+      kind: "or",
+      nodes: [
+        { kind: "leaf", fieldSlug: "age", operator: "lte", value: 18 },
+        { kind: "leaf", fieldSlug: "age", operator: "gte", value: 65 },
+      ],
+    });
+  });
+
+  it("keeps a NOT over an unexpressible condition unexpressible", () => {
+    // De Morgan cannot rescue what has no exact form to begin with.
+    expect(finalize(negate(matchesPattern("name", "kel%", false))).fullyExact).toBe(false);
+  });
+
+  it("turns a multi-element IN into an OR of equalities", () => {
+    const compiled = finalize(oneOf("name", ["a", "b"], false));
+    expect(compiled.fullyExact).toBe(true);
+    expect(compiled.valueTree).toEqual({
+      kind: "or",
+      nodes: [
+        { kind: "leaf", fieldSlug: "name", operator: "eq", value: "a" },
+        { kind: "leaf", fieldSlug: "name", operator: "eq", value: "b" },
+      ],
+    });
+  });
+
+  it("turns NOT IN into an AND of inequalities", () => {
+    expect(finalize(oneOf("name", ["a", "b"], true)).valueTree).toEqual({
+      kind: "and",
+      nodes: [
+        { kind: "leaf", fieldSlug: "name", operator: "ne", value: "a" },
+        { kind: "leaf", fieldSlug: "name", operator: "ne", value: "b" },
+      ],
+    });
   });
 
   it.each([
-    ["or", any([comparison("age", "gt", 18), comparison("age", "lt", 5)])],
-    ["not", negate(comparison("age", "gt", 18))],
     ["like", matchesPattern("name", "kel%", false)],
     ["isEmpty", isEmpty("name")],
-    ["multi-element in", oneOf("name", ["a", "b"], false)],
   ])("is not exact with %s", (_label, node) => {
     expect(finalize(node).fullyExact).toBe(false);
   });
 
   it("loses exactness when one branch of an AND is inexact", () => {
     // One condition the server cannot decide makes its answer a superset again,
-    // and a superset cannot carry a limit.
+    // and a superset cannot carry a limit. The expressible half survives in the
+    // tree — dropping a conjunct only widens, so it is still worth sending.
     const compiled = finalize(
       all([comparison("age", "gt", 18), matchesPattern("name", "kel%", false)]),
     );
     expect(compiled.fullyExact).toBe(false);
-    expect(compiled.valueCandidates).toEqual([{ fieldSlug: "age", operator: "gt", value: 18 }]);
+    expect(compiled.valueTree).toEqual({
+      kind: "and",
+      nodes: [{ kind: "leaf", fieldSlug: "age", operator: "gt", value: 18 }, { kind: "opaque" }],
+    });
+  });
+
+  it("keeps the hole visible when one branch of an OR is inexact", () => {
+    // The distinction the tree exists for: this hole may NOT be dropped the way
+    // the AND's may, because dropping a disjunct loses rows.
+    const compiled = finalize(
+      any([comparison("age", "gt", 18), matchesPattern("name", "kel%", false)]),
+    );
+    expect(compiled.fullyExact).toBe(false);
+    expect(compiled.valueTree).toEqual({
+      kind: "or",
+      nodes: [{ kind: "leaf", fieldSlug: "age", operator: "gt", value: 18 }, { kind: "opaque" }],
+    });
   });
 
   it("is trivially exact with nothing to decide", () => {

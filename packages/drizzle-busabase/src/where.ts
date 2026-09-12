@@ -3,6 +3,7 @@ import {
   any,
   type ComparisonOperator,
   type CompiledWhere,
+  columnComparison,
   comparison,
   finalize,
   inRange,
@@ -201,10 +202,24 @@ const walkComparison = (
     return inRange(slug, lower.value, upper.value);
   }
 
+  // `a <op> b` — two columns off the same record. Decided locally (there is no
+  // wire form for comparing one stored column against another), but answerable,
+  // so it is translated rather than refused.
+  const rightColumn = rest[0];
+  if (rightColumn instanceof Column) {
+    const mappedColumn = COMPARISONS[operator];
+    if (!mappedColumn) {
+      throw new UnsupportedWhereError(
+        `operator \`${operator}\` has no Busabase translation for a column-to-column comparison`,
+      );
+    }
+    return columnComparison(slug, mappedColumn, resolveFieldSlug(rightColumn));
+  }
+
   const parsed = asValue(rest[0]);
   if (!parsed.ok) {
     throw new UnsupportedWhereError(
-      `right-hand side of \`${operator}\` is not a literal (${describe(rest[0])}) — column-to-column comparison is not supported`,
+      `right-hand side of \`${operator}\` is not a literal (${describe(rest[0])})`,
     );
   }
 

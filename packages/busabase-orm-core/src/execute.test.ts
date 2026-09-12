@@ -42,6 +42,26 @@ const makeClient = (records = DATA, pageSize = 2) => {
       list: async () => [{ id: "bas_1", slug: "things", fields: FIELDS }],
     },
     records: {
+      /**
+       * Faithful about ONE thing that matters: a real server REFUSES a
+       * `valueFilters` entry naming a field the Base does not have. That
+       * refusal is how the driver tells a server that applies these filters
+       * from an older one that silently strips them — a fake that answered
+       * politely would make every exact push-down look unsupported.
+       */
+      count: async (input: ListCall) => {
+        const slugs = (input.valueFilters ?? []).flatMap((filter) =>
+          "any" in filter
+            ? (filter as { any: { fieldSlug: string }[] }).any.map((leaf) => leaf.fieldSlug)
+            : [(filter as { fieldSlug: string }).fieldSlug],
+        );
+        for (const slug of slugs) {
+          if (!FIELDS.some((field) => field.slug === slug)) {
+            throw new Error(`valueFilters: this Base has no field "${slug}"`);
+          }
+        }
+        return { total: records.length };
+      },
       list: async (input: ListCall) => {
         calls.push(input);
         const matching = (input.valueFilters ?? []).reduce((rows, filter) => {
