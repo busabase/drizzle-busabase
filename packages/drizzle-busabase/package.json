@@ -1,6 +1,6 @@
 {
   "name": "drizzle-busabase",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Drizzle ORM driver for Busabase — query a Busabase Base with drizzle's typed query builder, translated to busabase-sdk REST calls.",
   "license": "MIT",
   "homepage": "https://github.com/busabase/drizzle-busabase",
@@ -39,7 +39,7 @@
     "lint:err": "biome format . --write && biome check . --write --diagnostic-level=error"
   },
   "dependencies": {
-    "busabase-sdk": "^0.70.0"
+    "busabase-sdk": "^0.72.0"
   },
   "peerDependencies": {
     "drizzle-orm": ">=0.44 <1"

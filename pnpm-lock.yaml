@@ -13,17 +13,17 @@ importers:
         version: 2.2.3
       '@types/node':
         specifier: ^24.13.2
-        version: 24.13.5
+        version: 24.13.6
 
   packages/busabase-orm-core:
     dependencies:
       busabase-sdk:
-        specifier: ^0.70.0
-        version: 0.70.0
+        specifier: ^0.72.0
+        version: 0.72.0
     devDependencies:
       '@types/node':
         specifier: ^24.13.2
-        version: 24.13.5
+        version: 24.13.6
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(typescript@7.0.2)
@@ -32,23 +32,23 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@24.13.5)(vite@8.3.0(@types/node@24.13.5))
+        version: 4.1.11(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6))
 
   packages/drizzle-busabase:
     dependencies:
       busabase-sdk:
-        specifier: ^0.70.0
-        version: 0.70.0
+        specifier: ^0.72.0
+        version: 0.72.0
     devDependencies:
       '@types/node':
         specifier: ^24.13.2
-        version: 24.13.5
+        version: 24.13.6
       busabase-orm-core:
         specifier: workspace:*
         version: link:../busabase-orm-core
       drizzle-orm:
         specifier: ^0.45.1
-        version: 0.45.2
+        version: 0.45.3
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(typescript@7.0.2)
@@ -57,7 +57,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@24.13.5)(vite@8.3.0(@types/node@24.13.5))
+        version: 4.1.11(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6))
 
 packages:
 
@@ -117,31 +117,31 @@ packages:
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
 
-  '@orpc/client@1.15.1':
-    resolution: {integrity: sha512-EDGNwG7+0/yYB64s8hmxwRg3HA4lECwgn/UOv/OzMoke8d3Gk1ZwU5BnzUNj29VWnmW0hrLPn1fwx/umRFZMdg==}
+  '@orpc/client@1.15.3':
+    resolution: {integrity: sha512-ceMe1zGG0uTJr6RfB8TWLJU54DJe3dULkn1A8AUVUDJ4eS+JqMkMmG8zJdEXrkvm4Dwh8majVCpWfCwKuq57Pg==}
 
-  '@orpc/contract@1.15.1':
-    resolution: {integrity: sha512-iXVEEjooewmEkyrDLeWHY3vKYq67htdUQjCDLx0MoiqA0NFFVv6sZ1LNj/tPWZ1p5Mca34xcAx1SwYZcchQ/xA==}
+  '@orpc/contract@1.15.3':
+    resolution: {integrity: sha512-ta7LFMMua24obEaYTQerKaR9oGV17mZJ/w0TggJGbBKOsQ5IXxZsDFRh4ugIGFP9KCNPK4XqrENe6SUmc4CEfA==}
 
-  '@orpc/openapi-client@1.15.1':
-    resolution: {integrity: sha512-gJvTdB99tQkJX5iE+n4OxZPBDmzAgEiKDXYk0v0CLHJcZSZ/zNCZ0znKfNIWuAIr8PsxhRForTzxtYWSRKfzMA==}
+  '@orpc/openapi-client@1.15.3':
+    resolution: {integrity: sha512-4eY076Ah7HHAv/0cqZ+IRGRIwTD7oc6iVMGFwjc9fJM0OzuITqqj4XEl1cA2P9iJ7NLb97njcQ0ShAqbH4GHzg==}
 
-  '@orpc/shared@1.15.1':
-    resolution: {integrity: sha512-ovITuaYp79d45ER+93wqtqMJRtbiwB/WdemqX6G+OxzoduCZVodxWMMsalteduKxvZZmiAF+tHZuRq5P4uPp9w==}
+  '@orpc/shared@1.15.3':
+    resolution: {integrity: sha512-b8Y0Zt+OhxOJP5Fp7seoPhmSb5Pej8qKqzRxsSbYVb2C88E3XktWaTJVD9fC6lRXED8wDvy4SYag6XSKALwDbg==}
     peerDependencies:
       '@opentelemetry/api': '>=1.9.0'
     peerDependenciesMeta:
       '@opentelemetry/api':
         optional: true
 
-  '@orpc/standard-server-fetch@1.15.1':
-    resolution: {integrity: sha512-Luu0SnppLs4JHj/eg9erhIDajrAPL3+B0Gl3Xwn54tBa38GK3sAx7cXW3KEYi6ostfxYDCpWZToCJ/taNdcT5w==}
+  '@orpc/standard-server-fetch@1.15.3':
+    resolution: {integrity: sha512-m1S5pQuDngbYc+FX7Y6wekENjUphSPbTO0dEnfK7KBeZSH9mteh/0gyMS0YynXBU8AA7Yn3qTckoPzdRvgD8oA==}
 
-  '@orpc/standard-server-peer@1.15.1':
-    resolution: {integrity: sha512-qlLFqIiCpqjJv8N1pipVCRdm6VqpI3/itqXOaBoXhDD6nvxzvSENzvAMIOs25euwAh5SGOOrmjc8Y1ITWSpmag==}
+  '@orpc/standard-server-peer@1.15.3':
+    resolution: {integrity: sha512-1/vKuHc/dibDVKyT6PkzZ0V2T9TchQBz9lw7avCc0oGmIqNKqCsF3cWxMh1FEH8orI8VWu1o54s5uq63Px5rvw==}
 
-  '@orpc/standard-server@1.15.1':
-    resolution: {integrity: sha512-9DapOKyrEWqIAWQ0iZRTJ+AG7W70YXKhOBwlIlVv9ip7GeBytEcwghNtezNvIW5xwchkiCpNjSE91bW3Iw2txw==}
+  '@orpc/standard-server@1.15.3':
+    resolution: {integrity: sha512-ssLeP7EjtBw1k+7jkksnon7CkldSZPG9aBcUT9F46fvPX74ysIcX5swOuek8vS6WazEjd5NPkXYH3OxIpFdi6g==}
 
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
@@ -254,8 +254,8 @@ packages:
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
-  '@types/node@24.13.5':
-    resolution: {integrity: sha512-TXyindR+lBr22aJIdMQzCFHPHR6cR4js838mRDCSz5hOKWZvZwsXSSiXDmjRj4iJmgl+sR9O+1mkoVBSMadNug==}
+  '@types/node@24.13.6':
+    resolution: {integrity: sha512-SGrw/h3KPFshy3OE6ZL53LMBG5vGQQ8/gIpiqz/kRZhPJ7HgwCEs8LBuNtWLa8dvGZVpSF7+Bf+c11HUrCb/yg==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -537,8 +537,8 @@ packages:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
 
-  busabase-sdk@0.70.0:
-    resolution: {integrity: sha512-K2ObvhowmSQW4bFpcrB4bqUDVPQPmXA+BgfbHzNgjY1riWNNoqv4xqVs4+xiQ+curb3WM58BK7UTGbNg7UYZaA==}
+  busabase-sdk@0.72.0:
+    resolution: {integrity: sha512-YMkAdR4AzmwOs6+D5cwggCYeVcWh8FqvYo3HYtmImlvO/P3IJTZvT4bKdGGZl6f9vFLiOJ0cbjB6xbEw+tl9Gw==}
     engines: {node: '>=24.18.0'}
 
   cac@7.0.0:
@@ -559,8 +559,8 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  drizzle-orm@0.45.2:
-    resolution: {integrity: sha512-kY0BSaTNYWnoDMVoyY8uxmyHjpJW1geOmBMdSSicKo9CIIWkSxMIj2rkeSR51b8KAPB7m+qysjuHme5nKP+E5Q==}
+  drizzle-orm@0.45.3:
+    resolution: {integrity: sha512-CAloER21cDdcgZ1OmjrZX82EeRNsdP+y0onX/eyoYDaYzki/adrAa91lzM5jWh7zZPK4qUbw/6LGv9J+A+uizA==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -568,6 +568,7 @@ packages:
       '@libsql/client': '>=0.10.0'
       '@libsql/client-wasm': '>=0.10.0'
       '@neondatabase/serverless': '>=0.10.0'
+      '@netlify/db': '>=0.4.0'
       '@op-engineering/op-sqlite': '>=2'
       '@opentelemetry/api': ^1.4.1
       '@planetscale/database': '>=1.13'
@@ -603,6 +604,8 @@ packages:
       '@libsql/client-wasm':
         optional: true
       '@neondatabase/serverless':
+        optional: true
+      '@netlify/db':
         optional: true
       '@op-engineering/op-sqlite':
         optional: true
@@ -660,8 +663,8 @@ packages:
       oxc-resolver:
         optional: true
 
-  empathic@2.0.1:
-    resolution: {integrity: sha512-YGRs8knHhKHVShLkFET/rWAU8kmHbOV5LwN938RHI0pljAJ1Gf6SzXsSmRaEzcXTtOOmVqJ5+WtQPL5uigY50Q==}
+  empathic@2.1.0:
+    resolution: {integrity: sha512-AnfC1ATldl49/cvZdLPDjBfrRNwbDO05aibiOtzQu3qtlbJtomNLhF30HEtn/7iBz50dlMECqATo3fG0LrdEgw==}
     engines: {node: '>=14'}
 
   es-module-lexer@2.3.2:
@@ -1061,55 +1064,55 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
 
-  '@orpc/client@1.15.1':
+  '@orpc/client@1.15.3':
     dependencies:
-      '@orpc/shared': 1.15.1
-      '@orpc/standard-server': 1.15.1
-      '@orpc/standard-server-fetch': 1.15.1
-      '@orpc/standard-server-peer': 1.15.1
+      '@orpc/shared': 1.15.3
+      '@orpc/standard-server': 1.15.3
+      '@orpc/standard-server-fetch': 1.15.3
+      '@orpc/standard-server-peer': 1.15.3
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/contract@1.15.1':
+  '@orpc/contract@1.15.3':
     dependencies:
-      '@orpc/client': 1.15.1
-      '@orpc/shared': 1.15.1
+      '@orpc/client': 1.15.3
+      '@orpc/shared': 1.15.3
       '@standard-schema/spec': 1.1.0
       openapi-types: 12.1.3
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/openapi-client@1.15.1':
+  '@orpc/openapi-client@1.15.3':
     dependencies:
-      '@orpc/client': 1.15.1
-      '@orpc/contract': 1.15.1
-      '@orpc/shared': 1.15.1
-      '@orpc/standard-server': 1.15.1
+      '@orpc/client': 1.15.3
+      '@orpc/contract': 1.15.3
+      '@orpc/shared': 1.15.3
+      '@orpc/standard-server': 1.15.3
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/shared@1.15.1':
+  '@orpc/shared@1.15.3':
     dependencies:
       radash: 12.1.1
       type-fest: 5.10.0
 
-  '@orpc/standard-server-fetch@1.15.1':
+  '@orpc/standard-server-fetch@1.15.3':
     dependencies:
-      '@orpc/shared': 1.15.1
-      '@orpc/standard-server': 1.15.1
+      '@orpc/shared': 1.15.3
+      '@orpc/standard-server': 1.15.3
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/standard-server-peer@1.15.1':
+  '@orpc/standard-server-peer@1.15.3':
     dependencies:
-      '@orpc/shared': 1.15.1
-      '@orpc/standard-server': 1.15.1
+      '@orpc/shared': 1.15.3
+      '@orpc/standard-server': 1.15.3
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/standard-server@1.15.1':
+  '@orpc/standard-server@1.15.3':
     dependencies:
-      '@orpc/shared': 1.15.1
+      '@orpc/shared': 1.15.3
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
@@ -1177,7 +1180,7 @@ snapshots:
 
   '@types/estree@1.0.9': {}
 
-  '@types/node@24.13.5':
+  '@types/node@24.13.6':
     dependencies:
       undici-types: 7.18.2
 
@@ -1250,13 +1253,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.1
 
-  '@vitest/mocker@4.1.11(vite@8.3.0(@types/node@24.13.5))':
+  '@vitest/mocker@4.1.11(vite@8.3.0(@types/node@24.13.6))':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.3.0(@types/node@24.13.5)
+      vite: 8.3.0(@types/node@24.13.6)
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -1360,11 +1363,11 @@ snapshots:
 
   assertion-error@2.0.1: {}
 
-  busabase-sdk@0.70.0:
+  busabase-sdk@0.72.0:
     dependencies:
-      '@orpc/client': 1.15.1
-      '@orpc/contract': 1.15.1
-      '@orpc/openapi-client': 1.15.1
+      '@orpc/client': 1.15.3
+      '@orpc/contract': 1.15.3
+      '@orpc/openapi-client': 1.15.3
       zod: 4.6.5
     transitivePeerDependencies:
       - '@opentelemetry/api'
@@ -1379,11 +1382,11 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
-  drizzle-orm@0.45.2: {}
+  drizzle-orm@0.45.3: {}
 
   dts-resolver@3.0.0: {}
 
-  empathic@2.0.1: {}
+  empathic@2.1.0: {}
 
   es-module-lexer@2.3.2: {}
 
@@ -1548,7 +1551,7 @@ snapshots:
       ansis: 4.4.0
       cac: 7.0.0
       defu: 6.1.7
-      empathic: 2.0.1
+      empathic: 2.1.0
       hookable: 6.1.2
       import-without-cache: 0.4.1
       obug: 2.2.1
@@ -1604,7 +1607,7 @@ snapshots:
 
   verkit@0.3.2: {}
 
-  vite@8.3.0(@types/node@24.13.5):
+  vite@8.3.0(@types/node@24.13.6):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -1612,13 +1615,13 @@ snapshots:
       rolldown: 1.2.9
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 24.13.5
+      '@types/node': 24.13.6
       fsevents: 2.3.3
 
-  vitest@4.1.11(@types/node@24.13.5)(vite@8.3.0(@types/node@24.13.5)):
+  vitest@4.1.11(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@8.3.0(@types/node@24.13.5))
+      '@vitest/mocker': 4.1.11(vite@8.3.0(@types/node@24.13.6))
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -1635,10 +1638,10 @@ snapshots:
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vite: 8.3.0(@types/node@24.13.5)
+      vite: 8.3.0(@types/node@24.13.6)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 24.13.5
+      '@types/node': 24.13.6
     transitivePeerDependencies:
       - msw
 
